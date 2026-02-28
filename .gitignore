@@ -1,0 +1,7 @@
+# ============================================
+# .gitignore — Files to NEVER upload to GitHub
+# ============================================
+
+node_modules/
+.env
+*.log

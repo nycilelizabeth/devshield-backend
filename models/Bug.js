@@ -1,4 +1,4 @@
-// models/Bug.js — Bug Tracker Model with Team Support
+// models/Bug.js — Bug Tracker Model with Team + Due Date Support
 const mongoose = require('mongoose')
 
 const bugSchema = new mongoose.Schema({
@@ -13,6 +13,7 @@ const bugSchema = new mongoose.Schema({
   module:      { type: String, default: '' },
   steps:       { type: String, default: '' },
   environment: { type: String, default: '' },
+  dueDate:     { type: Date, default: null },
   screenshot:  {
     url:      { type: String, default: null },
     publicId: { type: String, default: null }

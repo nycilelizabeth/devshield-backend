@@ -11,6 +11,10 @@ const bugSchema = new mongoose.Schema({
   severity:    { type: String, enum: ['High', 'Medium', 'Low'], default: 'Medium' },
   status:      { type: String, enum: ['Open', 'In Progress', 'Resolved'], default: 'Open' },
   project:     { type: String, default: 'General' },
+  screenshot: {
+  url:      { type: String, default: null },
+  publicId: { type: String, default: null },
+},
   module:      { type: String, default: '' },
   steps:       { type: String, default: '' },  // Steps to reproduce
   environment: { type: String, default: '' },  // Browser / OS

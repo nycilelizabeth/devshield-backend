@@ -1,7 +1,8 @@
-// routes/bugs.js — Bug Tracker + Screenshot Upload
+// routes/bugs.js — Bug Tracker + Screenshot Upload + Team Support
 const express              = require('express')
 const router               = express.Router()
 const Bug                  = require('../models/Bug')
+const Team                 = require('../models/Team')
 const { protect }          = require('../middleware/auth')
 const { logActivity }      = require('../utils/logger')
 const { sendEmail }        = require('../utils/mailer')
@@ -9,28 +10,44 @@ const { upload, cloudinary } = require('../utils/cloudinary')
 
 router.use(protect)
 
-// GET all bugs
+// Helper: get team filter for current user
+const getTeamFilter = async (userId) => {
+  const team = await Team.findOne({ 'members.user': userId })
+  if (team) return { team: team._id }
+  return { user: userId, team: null }
+}
+
+// GET all bugs (personal or team)
 router.get('/', async (req, res) => {
   try {
-    const filter = { user: req.user._id }
+    const filter = await getTeamFilter(req.user._id)
     if (req.query.status)   filter.status   = req.query.status
     if (req.query.severity) filter.severity = req.query.severity
     if (req.query.project)  filter.project  = req.query.project
-    const bugs = await Bug.find(filter).sort({ createdAt: -1 })
+
+    const bugs = await Bug.find(filter)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name email')
+      .sort({ createdAt: -1 })
+
     res.json({ success: true, bugs, total: bugs.length })
-  } catch (e) { res.status(500).json({ success: false, message: 'Error fetching bugs' }) }
+  } catch (e) {
+    console.error(e)
+    res.status(500).json({ success: false, message: 'Error fetching bugs' })
+  }
 })
 
 // POST — create bug with optional screenshot
-// multer (upload.single) must run BEFORE we read req.body
 router.post('/', upload.single('screenshot'), async (req, res) => {
   try {
     const body = req.body || {}
-    const { title, description, severity, project, module, steps, environment } = body
-
+    const { title, description, severity, project, module, steps, environment, assignedTo } = body
     if (!title) return res.status(400).json({ success: false, message: 'Bug title is required' })
 
-    // Handle screenshot if uploaded
+    // Get team if user is in one
+    const team = await Team.findOne({ 'members.user': req.user._id })
+
+    // Handle screenshot
     let screenshot = { url: null, publicId: null }
     if (req.file) {
       screenshot = { url: req.file.path, publicId: req.file.filename }
@@ -38,9 +55,14 @@ router.post('/', upload.single('screenshot'), async (req, res) => {
 
     const bug = await Bug.create({
       user: req.user._id,
-      title, description, severity, project, module, steps, environment,
-      screenshot
+      team: team ? team._id : null,
+      assignedTo: assignedTo || null,
+      title, description, severity, project, module, steps, environment, screenshot
     })
+
+    const populated = await Bug.findById(bug._id)
+      .populate('user', 'name email')
+      .populate('assignedTo', 'name email')
 
     await logActivity(req, 'BUG_CREATED', `Created bug: "${title}"`,
       { bugId: bug._id, severity, project, hasScreenshot: !!req.file },
@@ -78,41 +100,42 @@ router.post('/', upload.single('screenshot'), async (req, res) => {
       })
     }
 
-    res.status(201).json({ success: true, message: 'Bug reported!', bug })
+    res.status(201).json({ success: true, message: 'Bug reported!', bug: populated })
   } catch (err) {
     console.error(err)
     res.status(500).json({ success: false, message: 'Error creating bug' })
   }
 })
 
-// PUT — update bug
+// PUT — update bug (status, assignee etc)
 router.put('/:id', async (req, res) => {
   try {
     const bug = await Bug.findById(req.params.id)
     if (!bug) return res.status(404).json({ success: false, message: 'Bug not found' })
-    if (bug.user.toString() !== req.user._id.toString())
-      return res.status(403).json({ success: false, message: 'Not authorized' })
 
     const updated = await Bug.findByIdAndUpdate(
-      req.params.id, { ...req.body, updatedAt: Date.now() }, { new: true })
+      req.params.id,
+      { ...req.body, updatedAt: Date.now() },
+      { new: true }
+    ).populate('user', 'name email').populate('assignedTo', 'name email')
+
     const action = req.body.status === 'Resolved' ? 'BUG_RESOLVED' : 'BUG_UPDATED'
     await logActivity(req, action,
       `${action === 'BUG_RESOLVED' ? 'Resolved' : 'Updated'} bug: "${bug.title}"`,
       { bugId: bug._id, newStatus: req.body.status })
 
     res.json({ success: true, message: 'Bug updated!', bug: updated })
-  } catch (e) { res.status(500).json({ success: false, message: 'Error updating bug' }) }
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Error updating bug' })
+  }
 })
 
-// DELETE — delete bug + delete screenshot from Cloudinary
+// DELETE — delete bug + screenshot from Cloudinary
 router.delete('/:id', async (req, res) => {
   try {
     const bug = await Bug.findById(req.params.id)
     if (!bug) return res.status(404).json({ success: false, message: 'Bug not found' })
-    if (bug.user.toString() !== req.user._id.toString())
-      return res.status(403).json({ success: false, message: 'Not authorized' })
 
-    // Delete screenshot from Cloudinary if exists
     if (bug.screenshot?.publicId) {
       await cloudinary.uploader.destroy(bug.screenshot.publicId)
     }
@@ -122,7 +145,9 @@ router.delete('/:id', async (req, res) => {
       { severity: bug.severity }, 'warning')
 
     res.json({ success: true, message: 'Bug deleted!' })
-  } catch (e) { res.status(500).json({ success: false, message: 'Error deleting bug' }) }
+  } catch (e) {
+    res.status(500).json({ success: false, message: 'Error deleting bug' })
+  }
 })
 
 module.exports = router

@@ -6,20 +6,18 @@ dotenv.config()
 
 const app = express()
 
-// ── Middleware ──
 app.use(cors({ origin: '*', credentials: true }))
 app.use(express.json())
-app.use(express.urlencoded({ extended: true })) // ← needed for multipart form fields
+app.use(express.urlencoded({ extended: true }))
 
-// ── Routes ──
 app.use('/api/auth',      require('./routes/auth'))
 app.use('/api/passwords', require('./routes/passwords'))
 app.use('/api/bugs',      require('./routes/bugs'))
 app.use('/api/testcases', require('./routes/testcases'))
 app.use('/api/breach',    require('./routes/breach'))
 app.use('/api/activity',  require('./routes/activity'))
+app.use('/api/teams',     require('./routes/teams'))
 
-// ── Health Check ──
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',
@@ -29,7 +27,6 @@ app.get('/api/health', (req, res) => {
   })
 })
 
-// ── Start Server ──
 mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log('✅ MongoDB Connected')

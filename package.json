@@ -1,12 +1,14 @@
 {
   "name": "backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "DevShield Backend API",
+  "main": "server.js",
   "scripts": {
-    "dev": "vite",
-    "build": "npx vite build",
-    "preview": "npx vite preview"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
+  },
+  "engines": {
+    "node": ">=18.0.0"
   },
   "keywords": [],
   "author": "",

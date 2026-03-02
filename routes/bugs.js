@@ -1,10 +1,10 @@
 // routes/bugs.js — Bug Tracker + Screenshot Upload
-const express         = require('express')
-const router          = express.Router()
-const Bug             = require('../models/Bug')
-const { protect }     = require('../middleware/auth')
-const { logActivity } = require('../utils/logger')
-const { sendEmail }   = require('../utils/mailer')
+const express              = require('express')
+const router               = express.Router()
+const Bug                  = require('../models/Bug')
+const { protect }          = require('../middleware/auth')
+const { logActivity }      = require('../utils/logger')
+const { sendEmail }        = require('../utils/mailer')
 const { upload, cloudinary } = require('../utils/cloudinary')
 
 router.use(protect)
@@ -22,9 +22,12 @@ router.get('/', async (req, res) => {
 })
 
 // POST — create bug with optional screenshot
+// multer (upload.single) must run BEFORE we read req.body
 router.post('/', upload.single('screenshot'), async (req, res) => {
   try {
-    const { title, description, severity, project, module, steps, environment } = req.body
+    const body = req.body || {}
+    const { title, description, severity, project, module, steps, environment } = body
+
     if (!title) return res.status(400).json({ success: false, message: 'Bug title is required' })
 
     // Handle screenshot if uploaded
